@@ -1,16 +1,21 @@
 import getopt
+import json
+import re
 import sys
+
+#import builtwith
 
 import requests
 from bs4 import BeautifulSoup
+from urlparse3 import urlparse3
+from os.path import splitext
 
-#popular_technology = ["wp-content", "jquery", "css", "javascript"]
+proxies = {}
 technology = set()
-
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "hu", ["help", "url"])
+        opts, args = getopt.getopt(argv, "hut", ["help", "url", "test proxy"])
     except getopt.GetoptError:
         sys.exit(2)
     for opt, arg in opts:
@@ -19,25 +24,109 @@ def main(argv):
             sys.exit()
         elif opt in ("-u", "--url"):
             search_url(sys.argv[2:])
-            print("test argument")
+            # print("test argument")
         elif opt in ("-s", "--search"):
             print("search word")
+        elif opt in ("-t", "--test proxy"):
+            pass
+            # print("test proxy ok")
 
 
 def search_url(url):
-    r = requests.get("".join(url))
-    soup = BeautifulSoup(r.content)
-    # print(soup)
-    for tag in soup.find_all("link", href=True):
-        if str(tag).find("wp-content"):
-            technology.add("wp-content")
-        if str(tag).find("jquery"):
-            technology.add("jquery")
-        if str(tag).find("css"):
-            technology.add("css")
-        if str(tag).find("script"):
-            technology.add("javascript")
-    print("Technology on scanned website " + str(technology))
+    data = open_f()
+    load_proxies()
+    try:
+        r = requests.get("https://randomcoder.org/articles/jsessionid-considered-harmful", proxies=proxies)
+    except requests.exceptions.ProxyError:
+        print("Proxy Error")
+    cookies = return_cookies(r)
+    soup = BeautifulSoup(r.content, "html.parser")
+    # print r.content
+    for tag in soup.findAll("script", src=True):
+        print(tag)
+    for i, j in data["apps"].items():
+        if "website" in j:
+            if j["website"].find(check_url("https://jquery.com/")) > -1:
+                technology.add(i)
+        if "headers" in j:
+            if "Set-Cookie" in j["headers"] and cookies != None:
+                if j["headers"]["Set-Cookie"] in cookies:
+                    technology.add(i)
+    print(r.headers)
+    for i in r.headers.keys():
+        if i == "Server":
+            technology.add(r.headers[i])
+            print(r.headers[i])
+        if i == "X-Powered-By":
+            technology.add(r.headers[i])
+        if i == "X-Generator":
+            technology.add(r.headers[i])
+    return_cookies(r)
+    print(technology)
+
+
+def return_cookies(req):
+    cookies = req.cookies.items()
+    print(cookies)
+    if len(cookies) > 0:
+        return cookies[0]
+    else:
+        return None
+
+
+# def get_ext(url):
+#     """Return the filename extension from url, or ''."""
+#     parsed = urlparse3(url)
+#     root, ext = splitext(parsed.path)
+#     return ext  # or ext[1:] if you don't want the leading '.'
+
+
+def open_f():
+    technologies = json.load(open('apps.json'))
+    return technologies
+
+
+def check_url(url):
+    if url.startswith('http'):
+        url = url.replace("http://", "")
+    if url.startswith('https'):
+        url = url.replace("https://", "")
+    if url.endswith("/"):
+        url = url[:len(url) - 1]
+    return url
+
+
+def load_proxies():
+    counter = 0
+    ip = ""
+    port = ""
+    https = ""
+    r = requests.get("https://free-proxy-list.net/")
+    soup = BeautifulSoup(r.content, "html.parser")
+    for tag in soup.find_all(class_="block-settings"):
+        for i in tag.find_all("tbody"):
+            for j in i.find_all("td"):
+                if counter == 0:
+                    ip = j.encode_contents()
+                    # print(j.encode_contents())
+                if counter == 1:
+                    port = j.encode_contents()
+                    # print(j.encode_contents())
+                if counter == 6:
+                    https = j.encode_contents()
+                    # print(j.encode_contents())
+                if counter == 7:
+                    add_to_dict(ip, port, https)
+                    counter = -1
+                counter += 1
+    print(proxies)
+
+
+def add_to_dict(ip, port, https):
+    if https == "yes":
+        proxies['https'] = "https://" + str(ip) + ":" + str(port)
+    else:
+        proxies['http'] = "http://" + str(ip) + ":" + str(port)
 
 
 if __name__ == "__main__":
