@@ -1,14 +1,11 @@
 import getopt
 import json
-import re
 import sys
 
 #import builtwith
 
 import requests
 from bs4 import BeautifulSoup
-from urlparse3 import urlparse3
-from os.path import splitext
 
 proxies = {}
 technology = set()
@@ -36,7 +33,7 @@ def search_url(url):
     data = open_f()
     load_proxies()
     try:
-        r = requests.get("https://randomcoder.org/articles/jsessionid-considered-harmful", proxies=proxies)
+        r = requests.get("https://codex.wordpress.org/Pages", proxies=proxies)
     except requests.exceptions.ProxyError:
         print("Proxy Error")
     cookies = return_cookies(r)
@@ -62,6 +59,7 @@ def search_url(url):
         if i == "X-Generator":
             technology.add(r.headers[i])
     return_cookies(r)
+    check_implies(data)
     print(technology)
 
 
@@ -84,6 +82,15 @@ def return_cookies(req):
 def open_f():
     technologies = json.load(open('apps.json'))
     return technologies
+
+
+def check_implies(data):
+    for i, j in data["apps"].items():
+        if "implies" in j:
+            if not isinstance(j["implies"], list):
+                if j["implies"] in technology:
+                    technology.add(j["implies"])
+
 
 
 def check_url(url):
