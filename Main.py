@@ -1,14 +1,17 @@
 import getopt
 import json
+import re
 import sys
 
-#import builtwith
+# import builtwith
 
 import requests
 from bs4 import BeautifulSoup
 
 proxies = {}
 technology = set()
+vendor_id = set()
+
 
 def main(argv):
     try:
@@ -60,6 +63,10 @@ def search_url(url):
             technology.add(r.headers[i])
     return_cookies(r)
     check_implies(data)
+    for i in technology:
+        security_mark(i)
+    for i in vendor_id:
+        check_vendor(i)
     print(technology)
 
 
@@ -91,6 +98,26 @@ def check_implies(data):
                 if j["implies"] in technology:
                     technology.add(j["implies"])
 
+
+def security_mark(technology):
+    r = requests.get("https://www.cvedetails.com/vendor-search.php?search=" + technology)
+    soup = BeautifulSoup(r.content, "html.parser")
+    for i in soup.find_all(class_="listtable"):
+        for j in i.find_all("a", href=True):
+            if str(j).find("vendor_id-") > -1:
+                vendor_id.add(re.findall('\d+', str(j))[0])
+
+
+def check_vendor(id):
+    score = 0
+    r = requests.get("https://www.cvedetails.com/vulnerability-list/vendor_id-" + id)
+    soup = BeautifulSoup(r.content, "html.parser")
+    for i in soup.findAll(class_="cvssbox"):
+        score += float(i.encode_contents().decode(encoding="utf-8"))
+    for i in soup.findAll(class_="paging"):
+        for j in i.find_all("b"):
+            score /= float(j.encode_contents().decode(encoding="utf-8"))
+    print(score)
 
 
 def check_url(url):
