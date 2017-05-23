@@ -35,6 +35,7 @@ def main(argv):
 def search_url(url):
     data = open_f()
     load_proxies()
+    script = ""
     try:
         r = requests.get("https://codex.wordpress.org/Pages", proxies=proxies)
     except requests.exceptions.ProxyError:
@@ -43,7 +44,7 @@ def search_url(url):
     soup = BeautifulSoup(r.content, "html.parser")
     # print r.content
     for tag in soup.findAll("script", src=True):
-        print(tag)
+        script += tag
     for i, j in data["apps"].items():
         if "website" in j:
             if j["website"].find(check_url("https://jquery.com/")) > -1:
@@ -52,17 +53,12 @@ def search_url(url):
             if "Set-Cookie" in j["headers"] and cookies != None:
                 if j["headers"]["Set-Cookie"] in cookies:
                     technology.add(i)
-    print(r.headers)
-    for i in r.headers.keys():
-        if i == "Server":
-            technology.add(r.headers[i])
-            print(r.headers[i])
-        if i == "X-Powered-By":
-            technology.add(r.headers[i])
-        if i == "X-Generator":
-            technology.add(r.headers[i])
+    # print(r.headers)
+    check_header(r.headers)
     return_cookies(r)
     check_implies(data)
+    # check_script(data)
+
     for i in technology:
         security_mark(i)
     for i in vendor_id:
@@ -70,25 +66,28 @@ def search_url(url):
     print(technology)
 
 
+def open_f():
+    technologies = json.load(open('apps.json'))
+    return technologies
+
+
+def check_header(header):
+    for i in header.keys():
+        if i == "Server":
+            technology.add(header[i])
+            print(header[i])
+        if i == "X-Powered-By":
+            technology.add(header[i])
+        if i == "X-Generator":
+            technology.add(header[i])
+
+
 def return_cookies(req):
     cookies = req.cookies.items()
-    print(cookies)
     if len(cookies) > 0:
         return cookies[0]
     else:
         return None
-
-
-# def get_ext(url):
-#     """Return the filename extension from url, or ''."""
-#     parsed = urlparse3(url)
-#     root, ext = splitext(parsed.path)
-#     return ext  # or ext[1:] if you don't want the leading '.'
-
-
-def open_f():
-    technologies = json.load(open('apps.json'))
-    return technologies
 
 
 def check_implies(data):
@@ -97,6 +96,19 @@ def check_implies(data):
             if not isinstance(j["implies"], list):
                 if j["implies"] in technology:
                     technology.add(j["implies"])
+
+
+def check_script(data, tag):
+    for i, j in data["apps"].items():
+        if "script" in j:
+            print(str(tag))
+
+
+# def get_ext(url):
+#     """Return the filename extension from url, or ''."""
+#     parsed = urlparse3(url)
+#     root, ext = splitext(parsed.path)
+#     return ext  # or ext[1:] if you don't want the leading '.'
 
 
 def security_mark(technology):
@@ -142,13 +154,10 @@ def load_proxies():
             for j in i.find_all("td"):
                 if counter == 0:
                     ip = j.encode_contents()
-                    # print(j.encode_contents())
                 if counter == 1:
                     port = j.encode_contents()
-                    # print(j.encode_contents())
                 if counter == 6:
                     https = j.encode_contents()
-                    # print(j.encode_contents())
                 if counter == 7:
                     add_to_dict(ip, port, https)
                     counter = -1
