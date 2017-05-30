@@ -1,0 +1,14 @@
+https://sportowefakty.wp.pl/
+5.438461538461538
+{'Google Analytics', 'nginx'}
+https://sportowefakty.wp.pl/
+5.438461538461538
+{'Google Analytics', 'nginx'}
+ https://sportowefakty.wp.pl/
+5.438461538461538
+{'Google Analytics', 'nginx'}
+
+https://sportowefakty.wp.pl/
+5.438461538461538
+{'nginx', 'Google Analytics'}
+--------

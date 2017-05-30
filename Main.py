@@ -1,21 +1,24 @@
+import datetime
 import getopt
 import json
 import re
 import sys
 
-# import builtwith
-
+import google
 import requests
 from bs4 import BeautifulSoup
 
 proxies = {}
 technology = set()
 vendor_id = set()
+list_to_write = []
+now = datetime.datetime.now()
 
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "hut", ["help", "url", "test proxy"])
+        opts, args = getopt.getopt(argv, "hus", ["help", "url", "search"])
+        load_proxies()
     except getopt.GetoptError:
         sys.exit(2)
     for opt, arg in opts:
@@ -23,31 +26,33 @@ def main(argv):
             print("Help")
             sys.exit()
         elif opt in ("-u", "--url"):
-            search_url(sys.argv[2:])
-            # print("test argument")
+            data = open_f()
+            search_url(sys.argv[2:], data)
         elif opt in ("-s", "--search"):
-            print("search word")
-        elif opt in ("-t", "--test proxy"):
-            pass
-            # print("test proxy ok")
+            google_search(sys.argv[2:])
 
 
-def search_url(url):
+def google_search(words):
+    words = " ".join(words)
     data = open_f()
-    load_proxies()
-    script = ""
+    for url in google.search(words, num=5, stop=1):
+        search_url(url, data)
+
+
+def search_url(url, data):
+    if isinstance(url, list):
+        url = url[0]
+    print(url)
+    list_to_write.append(url)
     try:
-        r = requests.get("https://codex.wordpress.org/Pages", proxies=proxies)
+        r = requests.get(url, proxies=proxies)
     except requests.exceptions.ProxyError:
-        print("Proxy Error")
+        r = requests.get(url)
     cookies = return_cookies(r)
     soup = BeautifulSoup(r.content, "html.parser")
-    # print r.content
-    for tag in soup.findAll("script", src=True):
-        script += tag
     for i, j in data["apps"].items():
         if "website" in j:
-            if j["website"].find(check_url("https://jquery.com/")) > -1:
+            if j["website"].find(check_url(url)) > -1:
                 technology.add(i)
         if "headers" in j:
             if "Set-Cookie" in j["headers"] and cookies != None:
@@ -56,13 +61,12 @@ def search_url(url):
     # print(r.headers)
     check_header(r.headers)
     return_cookies(r)
+    check_script(str(soup), data)
     check_implies(data)
     # check_script(data)
-
-    for i in technology:
-        security_mark(i)
-    for i in vendor_id:
-        check_vendor(i)
+    security_raport()
+    list_to_write.append(technology)
+    save_raport(list_to_write)
     print(technology)
 
 
@@ -75,7 +79,6 @@ def check_header(header):
     for i in header.keys():
         if i == "Server":
             technology.add(header[i])
-            print(header[i])
         if i == "X-Powered-By":
             technology.add(header[i])
         if i == "X-Generator":
@@ -129,7 +132,23 @@ def check_vendor(id):
     for i in soup.findAll(class_="paging"):
         for j in i.find_all("b"):
             score /= float(j.encode_contents().decode(encoding="utf-8"))
+    list_to_write.append(score)
     print(score)
+
+
+def security_raport():
+    for i in technology:
+        security_mark(i)
+    for i in vendor_id:
+        check_vendor(i)
+
+
+def save_raport(list_to_write_arg):
+    f = open(now.strftime("%Y_%m_%d") + now.strftime("%H") + "_result" + ".txt", "a")
+    for i in list_to_write:
+        f.write(str(i) + "\n")
+    f.write("\n")
+    f.close()
 
 
 def check_url(url):
@@ -153,11 +172,11 @@ def load_proxies():
         for i in tag.find_all("tbody"):
             for j in i.find_all("td"):
                 if counter == 0:
-                    ip = j.encode_contents()
+                    ip = j.encode_contents().decode(encoding="utf-8")
                 if counter == 1:
-                    port = j.encode_contents()
+                    port = j.encode_contents().decode(encoding="utf-8")
                 if counter == 6:
-                    https = j.encode_contents()
+                    https = j.encode_contents().decode(encoding="utf-8")
                 if counter == 7:
                     add_to_dict(ip, port, https)
                     counter = -1
@@ -170,6 +189,40 @@ def add_to_dict(ip, port, https):
         proxies['https'] = "https://" + str(ip) + ":" + str(port)
     else:
         proxies['http'] = "http://" + str(ip) + ":" + str(port)
+
+
+"""This function is from builwith Python lib"""
+"""https://github.com/claymation/python-builtwith"""
+def check_script(html, data):
+    for app_name, app_spec in data['apps'].items():
+        for key in 'html', 'script':
+            snippets = app_spec.get(key, [])
+            if not isinstance(snippets, list):
+                snippets = [snippets]
+            for snippet in snippets:
+                if contains(str(html), snippet):
+                    technology.add(app_name)
+                    break
+
+    # check meta
+    # XXX add proper meta data parsing
+    metas = dict(
+            re.compile('<meta[^>]*?name=[\'"]([^>]*?)[\'"][^>]*?content=[\'"]([^>]*?)[\'"][^>]*?>',
+                       re.IGNORECASE).findall(
+                    html))
+    for app_name, app_spec in data['apps'].items():
+        for name, content in app_spec.get('meta', {}).items():
+            if name in metas:
+                if contains(metas[name], content):
+                    technology.add(app_name)
+                    break
+
+"""This function is from builwith Python lib """
+"""https://github.com/claymation/python-builtwith"""
+def contains(v, regex):
+    """Removes meta data from regex then checks for a regex match
+    """
+    return re.compile(regex.split('\\;')[0], flags=re.IGNORECASE).search(v)
 
 
 if __name__ == "__main__":
